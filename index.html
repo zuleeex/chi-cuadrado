@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi-cuadrado</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jstat/dist/jstat.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="https://app.embed.im//snow.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+</head>
+<body>
+    <div class="container">
+        <h2>Prueba Chi-cuadrado</h2>
+
+        <div class="input-group">
+            <input type="number" id="rows" class="form-control" placeholder="Número de filas" min="2">
+            <input type="number" id="cols" class="form-control" placeholder="Número de columnas" min="2">
+        </div>
+
+        <button id="generate-table" class="form-control">Generar tabla</button>
+
+        <div id="table-container"></div>
+
+        <button id="calculate-chi" class="form-control" style="display: none;">Calcular Chi-cuadrado</button>
+
+        <div id="results" class="results-container" style="display: none;"></div>
+
+        <div class="loader">
+            <div class="loader__bar"></div>
+            <div class="loader__bar"></div>
+            <div class="loader__bar"></div>
+            <div class="loader__bar"></div>
+            <div class="loader__bar"></div>
+            <div class="loader__ball"></div>
+         </div>
+         
+
+        
+         <button id="view-graph" class="form-control" style="display: none;">Ver Gráfica</button>
+
+         
+
+
+        <canvas id="chi-chart" width="400" height="200"></canvas>
+
+        
+        <button id="download-file" class="form-control" style="display: none;">Descargar Resultados</button>
+    
+        <button id="download-graph" class="form-control" style="display: none;">Descargar Gráfico</button>
+
+    
+    </div>
+
+    <script>
+        let rows, cols, observed, expected, chiSquared, chart;
+
+        document.getElementById('generate-table').addEventListener('click', () => {
+            rows = parseInt(document.getElementById('rows').value);
+            cols = parseInt(document.getElementById('cols').value);
+            const container = document.getElementById('table-container');
+
+            if (rows > 5 || cols > 5 || rows < 2 || cols < 2) {
+                alert("Por favor, ingresa valores entre 2 y 5.");
+                return;
+            }
+
+            container.innerHTML = '<h5>Ingresa las Frecuencias Observadas:</h5>';
+            const table = document.createElement('table');
+            table.className = 'table table-bordered';
+
+            for (let i = 0; i <= rows; i++) {
+                const row = document.createElement('tr');
+                for (let j = 0; j <= cols; j++) {
+                    const cell = document.createElement(i === 0 || j === 0 ? 'th' : 'td');
+                    if (i === 0 && j > 0) {
+                        cell.textContent = `Col ${j}`;
+                    } else if (j === 0 && i > 0) {
+                        cell.textContent = `Fila ${i}`;
+                    } else if (i > 0 && j > 0) {
+                        const input = document.createElement('input');
+                        input.type = 'number';
+                        input.className = 'form-control';
+                        input.id = `cell-${i}-${j}`;
+                        cell.appendChild(input);
+                    }
+                    row.appendChild(cell);
+                }
+                table.appendChild(row);
+            }
+            container.appendChild(table);
+            document.getElementById('calculate-chi').style.display = 'block';
+        });
+
+        
+
+        document.getElementById('calculate-chi').addEventListener('click', () => {
+            const alpha = 0.05;
+            observed = [];
+            expected = [];
+            chiSquared = 0;
+
+            let total = 0;
+            for (let i = 1; i <= rows; i++) {
+                observed.push([]);
+                for (let j = 1; j <= cols; j++) {
+                    const value = parseFloat(document.getElementById(`cell-${i}-${j}`).value);
+                    if (isNaN(value) || value < 0) {
+                        alert("Por favor, ingresa valores válidos en la tabla.");
+                        return;
+                    }
+                    observed[i - 1].push(value);
+                    total += value;
+                }
+            }
+
+            const rowSums = observed.map(row => row.reduce((a, b) => a + b, 0));
+            const colSums = observed[0].map((_, col) => observed.reduce((a, b) => a + b[col], 0));
+
+            for (let i = 0; i < rows; i++) {
+                expected.push([]);
+                for (let j = 0; j < cols; j++) {
+                    const expectedValue = (rowSums[i] * colSums[j]) / total;
+                    expected[i].push(expectedValue);
+                    chiSquared += Math.pow(observed[i][j] - expectedValue, 2) / expectedValue;
+                }
+            }
+
+            const degreesOfFreedom = (rows - 1) * (cols - 1);
+            const criticalValue = jStat.chisquare.inv(1 - alpha, degreesOfFreedom);
+            const result = chiSquared > criticalValue ? "Rechazar H₀" : "No Rechazar H₀";
+
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('results').innerHTML = `
+                <h5>Resultados:</h5>
+                <p><strong>Valor Calculado de Chi Cuadrado:</strong> ${chiSquared.toFixed(2)}</p>
+                <p><strong>Grados de Libertad:</strong> ${degreesOfFreedom}</p>
+                <p><strong>Valor Crítico (α=0.05):</strong> ${criticalValue}</p>
+                <p><strong>Conclusión:</strong> ${result}</p>
+            `;
+
+            document.getElementById('view-graph').style.display = 'block';
+        });
+
+        // Mostrar cargador cuando el gráfico está cargando
+        window.onload = function() {
+            document.querySelector(".loader").style.display = "none";  // Ocultar cargador
+    // Lógica para mostrar el gráfico aquí
+};
+
+
+        document.getElementById('view-graph').addEventListener('click', () => {
+            if (chart) chart.destroy();
+
+            const df = (rows - 1) * (cols - 1);
+            const alpha = 0.05;
+
+            const criticalValue = jStat.chisquare.inv(1 - alpha, df);
+            const pValue = 1 - jStat.chisquare.cdf(chiSquared, df);
+
+            const xValues = [];
+            const yValues = [];
+            const criticalRegion = [];
+            const experimentalRegion = [];
+
+            for (let x = 0; x <= criticalValue + 10; x += 0.1) {
+                const density = chiSquaredDensity(x, df);
+                xValues.push(x);
+                yValues.push(density);
+                criticalRegion.push(x > criticalValue ? density : 0);
+                experimentalRegion.push(x <= chiSquared ? density : 0);
+            }
+
+            const ctx = document.getElementById('chi-chart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: xValues,
+                    datasets: [
+                        {
+                            label: "Distribución Chi-cuadrado",
+                            data: yValues,
+                            borderColor: "blue",
+                            borderWidth: 2,
+                            fill: false,
+                        },
+                        {
+                            label: "Región Crítica",
+                            data: criticalRegion,
+                            backgroundColor: "rgba(255, 0, 0, 0.3)",
+                            borderWidth: 0,
+                            fill: true,
+                        },
+                        {
+                            label: "Región Experimental",
+                            data: experimentalRegion,
+                            backgroundColor: "rgba(0, 255, 0, 0.3)",
+                            borderWidth: 0,
+                            fill: true,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: true },
+                        title: {
+                            display: true,
+                            text: 'Distribución Chi-cuadrado con Región Crítica',
+                        },
+                    },
+                },
+            });
+        });
+
+        document.getElementById('download-file').addEventListener('click', () => {
+    // Obtener los resultados
+    const resultsText = `
+        Resultados de la Prueba Chi-cuadrado:
+        -----------------------------------
+        Valor Calculado de Chi Cuadrado: ${chiSquared.toFixed(2)}
+        Grados de Libertad: ${(rows - 1) * (cols - 1)}
+        Valor Crítico (α=0.05): ${jStat.chisquare.inv(1 - 0.05, (rows - 1) * (cols - 1))}
+        Conclusión: ${chiSquared > jStat.chisquare.inv(1 - 0.05, (rows - 1) * (cols - 1)) ? "Rechazar H₀" : "No Rechazar H₀"}
+    `;
+
+    // Crear un archivo con el contenido generado
+    const blob = new Blob([resultsText], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'resultados_chi_cuadrado.txt'; // Puedes cambiar el nombre del archivo si lo deseas
+
+    // Hacer clic en el enlace para descargar el archivo
+    link.click();
+});
+
+document.getElementById('download-file').style.display = 'block';
+
+
+document.getElementById('download-graph').addEventListener('click', () => {
+    const chartCanvas = document.getElementById('chi-chart'); // Obtenemos el lienzo del gráfico
+    const chartImage = chartCanvas.toDataURL('image/png'); // Convertimos el gráfico a una imagen PNG
+    
+    // Creamos un enlace para descargar la imagen
+    const link = document.createElement('a');
+    link.href = chartImage;
+    link.download = 'grafico_chi_cuadrado.png'; // Puedes cambiar el nombre del archivo si lo deseas
+
+    // Hacemos clic en el enlace para descargar la imagen
+    link.click();
+});
+
+document.getElementById('download-graph').style.display = 'block';
+
+
+
+        function chiSquaredDensity(x, df) {
+            return jStat.chisquare.pdf(x, df);
+        }
+    </script>
+</body>
+</html>
